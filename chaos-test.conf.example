@@ -1,0 +1,96 @@
+# chaos-test.conf.example - Configuration for docker-chaos-test
+# Copy to chaos-test.conf and customize for your environment
+# Load with: ./chaos-test.sh --config chaos-test.conf
+
+# -- Docker Socket ------------------------------------------------------------
+# CHAOS_DOCKER_SOCKET="/var/run/docker.sock"
+# CHAOS_DOCKER_GROUP="docker"
+
+# -- DNS ----------------------------------------------------------------------
+# CHAOS_DNS_TEST_HOST="google.com"
+# CHAOS_DNS_TEST_CONTAINER=""  # container with python3 for DNS testing
+
+# -- PostgreSQL ---------------------------------------------------------------
+# CHAOS_POSTGRES_CONTAINER="postgres"
+# CHAOS_POSTGRES_USER="postgres"
+# CHAOS_POSTGRES_MAX_CONN=100
+# CHAOS_POSTGRES_CONN_THRESHOLD=80
+
+# -- Cloudflare Tunnel --------------------------------------------------------
+# CHAOS_CLOUDFLARE_CONTAINER="cloudflared"
+
+# -- Disk Space ---------------------------------------------------------------
+# CHAOS_DISK_MOUNTS="/"              # space-separated mount points
+# CHAOS_DISK_WARN_PCT=90
+# CHAOS_DISK_CRIT_PCT=95
+# CHAOS_DISK_RESERVE_MB=500          # never fill below this
+
+# -- NVMe Health --------------------------------------------------------------
+# CHAOS_NVME_DEVICE="auto"           # "auto" or explicit like "/dev/nvme0n1"
+# CHAOS_NVME_TEMP_WARN=70
+# CHAOS_NVME_PCT_WARN=90
+
+# -- Alerting -----------------------------------------------------------------
+# ALERT_CALLBACK=""                   # function name for alert delivery
+# CHAOS_ALERT_COOLDOWN=300            # seconds between alerts for same issue
+
+# -- Fleet Verification -------------------------------------------------------
+# Verify all running containers after chaos recovery (SoT/EoT probes).
+# Format: "container|health_url|depends_on|timeout"  (pipe-delimited, avoids :// collision)
+# - health_url: HTTP endpoint to check (empty = running-check only)
+# - depends_on: comma-separated container names (empty = independent)
+# - timeout: per-service recovery timeout in seconds (empty = use CHAOS_FLEET_TIMEOUT)
+#
+# Containers not listed here are auto-discovered via docker ps and get
+# running-check only (no health URL, no dependency tracking).
+#
+# CHAOS_FLEET_SERVICES=(
+#     # Tier 1: Core infrastructure
+#     "n8n-postgres|||120"
+#     "n8n-redis|||"
+#     "surrealdb|||"
+#
+#     # Tier 2: Databases
+#     "nocodb|http://localhost:8090/||"
+#     "surrealist||surrealdb|"
+#
+#     # Tier 3: n8n cluster
+#     "n8n-main|http://localhost:5678/healthz|n8n-postgres,n8n-redis|60"
+#     "n8n-worker-1||n8n-postgres,n8n-redis|45"
+#     "n8n-worker-2||n8n-postgres,n8n-redis|45"
+#     "n8n-worker-3||n8n-postgres,n8n-redis|45"
+#
+#     # Tier 4: Application services
+#     "commander|http://localhost:8070/||"
+#     "deep-origins|http://localhost:8060/health||"
+#     "youtube-uploader|http://localhost:8055/health||"
+#     "factory-agent|http://localhost:8050/health||"
+#     "claude-telegram||n8n-postgres|"
+#     "skool-api|http://localhost:8091/health||"
+#
+#     # Tier 5: External access
+#     "cloudflared|||"
+#
+#     # Tier 6: GPU services
+#     "comfyui|http://localhost:8188/system_stats||300"
+# )
+#
+# CHAOS_FLEET_SKIP="supabase-|n8n-db-cleaner|n8n-video-cleaner|wonderful_tesla"
+# CHAOS_FLEET_TIMEOUT=90                         # default per-service timeout
+# CHAOS_FLEET_STRATEGY="restart"                 # "restart" or "report"
+
+# -- Blast Radius: Module-to-Container Mappings -------------------------------
+# Maps chaos modules to the containers they directly break.
+# Empty = host-level fault (affects host DNS, disk, etc. not a specific container).
+# Used by fleet_compute_blast_radius() to classify containers into zones.
+#
+# CHAOS_MODULE_CONTAINERS_postgres="n8n-postgres"
+# CHAOS_MODULE_CONTAINERS_docker_socket=""   # affects everything via socket
+# CHAOS_MODULE_CONTAINERS_dns=""             # affects host DNS resolver
+# CHAOS_MODULE_CONTAINERS_cloudflare="cloudflared"
+# CHAOS_MODULE_CONTAINERS_disk_space=""      # affects mount, not specific container
+# CHAOS_MODULE_CONTAINERS_nvme_health=""     # read-only, no containers affected
+
+# -- General ------------------------------------------------------------------
+# CHAOS_LOG_FILE="/tmp/chaos-test.log"
+# CHAOS_VERBOSE=false

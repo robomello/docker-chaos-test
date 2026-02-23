@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on all scripts
+        run: |
+          find . -name '*.sh' -type f | while read -r f; do
+            echo "Checking $f"
+            shellcheck -s bash -S warning "$f"
+          done
+
+  syntax:
+    name: Bash syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash -n on all scripts
+        run: |
+          fail=0
+          find . -name '*.sh' -type f | while read -r f; do
+            echo "Syntax check: $f"
+            bash -n "$f" || fail=1
+          done
+          exit $fail
+
+  smoke:
+    name: Smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make executable
+        run: chmod +x chaos-test.sh
+
+      - name: --help
+        run: ./chaos-test.sh --help
+
+      - name: --list-modules
+        run: ./chaos-test.sh --list-modules
+
+      - name: --dry-run (all modules, no fleet)
+        run: ./chaos-test.sh --dry-run --no-fleet --modules dns,disk-space,nvme-health
+
+      - name: Source self-heal library
+        run: |
+          bash -c '
+            source lib/self-heal.sh
+            echo "Modules: ${CHAOS_MODULES[*]}"
+            [[ ${#CHAOS_MODULES[@]} -ge 6 ]] || { echo "Expected 6+ modules"; exit 1; }
+          '
+
+      - name: Verify fleet init with config
+        run: |
+          bash -c '
+            source lib/self-heal.sh
+            init_state_dir
+
+            CHAOS_FLEET_SERVICES=(
+              "test-db|||60"
+              "test-app|http://localhost:9999/health|test-db|30"
+            )
+            fleet_init
+
+            [[ ${#FLEET_CONTAINERS[@]} -ge 2 ]] || { echo "Expected 2+ fleet containers"; exit 1; }
+            [[ "${FLEET_DEPENDS_ON[test-app]}" == "test-db" ]] || { echo "Dependency not parsed"; exit 1; }
+            echo "Fleet init OK: ${#FLEET_CONTAINERS[@]} containers"
+          '
+
+      - name: Verify blast radius computation
+        run: |
+          bash -c '
+            source lib/self-heal.sh
+            init_state_dir
+
+            CHAOS_FLEET_SERVICES=(
+              "pg|||60"
+              "app1||pg|30"
+              "app2||pg|30"
+              "worker||app1|30"
+            )
+            fleet_init
+
+            CHAOS_MODULE_CONTAINERS_testmod="pg"
+            fleet_compute_blast_radius testmod
+
+            [[ ${#BLAST_ZONE_0[@]} -eq 1 ]] || { echo "Zone 0: expected 1, got ${#BLAST_ZONE_0[@]}"; exit 1; }
+            [[ ${#BLAST_ZONE_1[@]} -eq 2 ]] || { echo "Zone 1: expected 2, got ${#BLAST_ZONE_1[@]}"; exit 1; }
+            [[ ${#BLAST_ZONE_2[@]} -eq 1 ]] || { echo "Zone 2: expected 1, got ${#BLAST_ZONE_2[@]}"; exit 1; }
+            echo "Blast radius OK: z0=${#BLAST_ZONE_0[@]} z1=${#BLAST_ZONE_1[@]} z2=${#BLAST_ZONE_2[@]}"
+          '

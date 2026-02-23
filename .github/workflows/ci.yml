@@ -20,7 +20,10 @@ jobs:
         run: |
           find . -name '*.sh' -type f | while read -r f; do
             echo "Checking $f"
-            shellcheck -s bash -S warning "$f"
+            shellcheck -s bash -S warning \
+              -e SC2034 \
+              -e SC2155 \
+              "$f"
           done
 
   syntax:

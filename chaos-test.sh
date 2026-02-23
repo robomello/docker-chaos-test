@@ -599,6 +599,7 @@ for (( round = 1; round <= OPT_ROUNDS; round++ )); do
     # Clean up per-round arrays to avoid bleed-through
     unset broken_this_round break_ts round_status round_rec_sec
     declare -a broken_this_round=()
+    # shellcheck disable=SC2034  # break_ts is used in the next iteration
     declare -A break_ts=()
     declare -A round_status=()
     declare -A round_rec_sec=()
